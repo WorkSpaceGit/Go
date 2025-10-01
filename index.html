@@ -109,6 +109,7 @@
   </div>
 
   <script>
+    /* ========== Константи та DOM ========== */
     const SIZE = 9;
     const EMPTY = 0, BLACK = 1, WHITE = 2;
     const STONE_COLORS = {1: "#222", 2: "#eee"};
@@ -119,20 +120,6 @@
     const STAR_POINTS = [[2,2],[2,6],[6,2],[6,6],[4,4]];
     const LETTERS = "ABCDEFGHI".split("");
 
-    let board = [];
-    let turn = BLACK;
-    let ko = null;
-    let captures = {1:0, 2:0};
-    let history = [];
-    let passCount = 0;
-    let gameOver = false;
-    let lastMove = null;
-    let territoryMap = null;
-
-    let markingMode = false;
-    let territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-    let markActive = BLACK;
-
     const canvas = document.getElementById('go-board');
     const info = document.getElementById('info');
     const passBtn = document.getElementById('pass-btn');
@@ -141,7 +128,17 @@
     const toggleMarkBtn = document.getElementById('toggle-mark-btn');
     const finalCountBtn = document.getElementById('final-count-btn');
     const clearMarksBtn = document.getElementById('clear-marks-btn');
+    const ctx = canvas.getContext('2d');
 
+    /* ========== Ігровий стан ========== */
+    let board, turn, ko, captures, history, passCount, gameOver, lastMove, territoryMap;
+    let markingMode, territoryMarks, markActive;
+
+    /* ========== Кеш для малювання ========== */
+    let pad = 0, cell = 0;
+    let coordsX = [], coordsY = [];
+
+    /* ========== Ініціалізація ========== */
     function init() {
       board = Array.from({length: SIZE}, () => Array(SIZE).fill(EMPTY));
       turn = BLACK;
@@ -152,99 +149,122 @@
       gameOver = false;
       lastMove = null;
       territoryMap = null;
+
       markingMode = false;
       territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
       markActive = BLACK;
+
       toggleMarkBtn.style.display = 'none';
       finalCountBtn.style.display = 'none';
       clearMarksBtn.style.display = 'none';
       passBtn.style.display = 'inline-block';
-      resizeCanvas();
-      draw();
+
+      resizeCanvas(); // також викликає draw через debounce
       updateInfo();
     }
+
+    /* ========== Розмір канвасу (debounce) ========== */
+    let resizeTimer = null;
     function resizeCanvas() {
-      const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      canvas.style.width = rect.width + "px";
-      canvas.style.height = rect.height + "px";
-      draw();
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const rect = container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.max(100, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(100, Math.floor(rect.height * dpr));
+        canvas.style.width = rect.width + "px";
+        canvas.style.height = rect.height + "px";
+
+        pad = canvas.width * 0.06;
+        cell = (canvas.width - 2*pad) / (SIZE - 1);
+
+        // Кеш координат в пікселях рендеру (device pixels)
+        coordsX = Array.from({length: SIZE}, (_, i) => pad + i*cell);
+        coordsY = Array.from({length: SIZE}, (_, i) => pad + i*cell);
+
+        draw();
+      }, 120); // 120ms debounce щоб уникнути зайвих перемальовувань під час ресайзу
     }
     window.addEventListener('resize', resizeCanvas);
 
+    /* ========== Малювання ========== */
     function draw() {
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width, h = canvas.height;
+      // Налаштування контексту
       ctx.setTransform(1,0,0,1,0,0);
-      ctx.clearRect(0,0,w,h);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
 
-      const pad = w * 0.06;
-      const cell = (w - 2*pad) / (SIZE-1);
-
+      // фон дошки
       ctx.fillStyle = BOARD_COLOR;
-      ctx.fillRect(0,0,w,h);
+      ctx.fillRect(0,0,canvas.width,canvas.height);
 
+      // лінії
       ctx.strokeStyle = LINE_COLOR;
-      ctx.lineWidth = Math.max(1, cell*0.035);
-      for(let i=0;i<SIZE;i++) {
+      ctx.lineWidth = Math.max(1, cell * 0.035);
+      for (let i=0;i<SIZE;i++) {
         ctx.beginPath();
-        ctx.moveTo(pad + i*cell, pad);
-        ctx.lineTo(pad + i*cell, h-pad);
+        ctx.moveTo(coordsX[i], pad);
+        ctx.lineTo(coordsX[i], canvas.height - pad);
         ctx.stroke();
+
         ctx.beginPath();
-        ctx.moveTo(pad, pad + i*cell);
-        ctx.lineTo(w-pad, pad + i*cell);
+        ctx.moveTo(pad, coordsY[i]);
+        ctx.lineTo(canvas.width - pad, coordsY[i]);
         ctx.stroke();
       }
 
+      // підписи
       ctx.fillStyle = "#444";
       ctx.font = `${cell*0.2}px Segoe UI, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      for(let i=0;i<SIZE;i++) {
-        ctx.fillText(LETTERS[i], pad + i*cell, pad*0.5);
-        ctx.fillText(LETTERS[i], pad + i*cell, h - pad*0.5);
-        ctx.fillText(SIZE-i, pad*0.5, pad + i*cell);
-        ctx.fillText(SIZE-i, w - pad*0.5, pad + i*cell);
+      for (let i=0;i<SIZE;i++) {
+        ctx.fillText(LETTERS[i], coordsX[i], pad*0.5);
+        ctx.fillText(LETTERS[i], coordsX[i], canvas.height - pad*0.5);
+        ctx.fillText(SIZE-i, pad*0.5, coordsY[i]);
+        ctx.fillText(SIZE-i, canvas.width - pad*0.5, coordsY[i]);
       }
 
+      // зоряні точки (hoshi)
       ctx.fillStyle = STAR_COLOR;
-      for(const [x,y] of STAR_POINTS) {
+      for (const [sx, sy] of STAR_POINTS) {
         ctx.beginPath();
-        ctx.arc(pad + x*cell, pad + y*cell, cell*0.13, 0, 2*Math.PI);
+        ctx.arc(coordsX[sx], coordsY[sy], cell*0.13, 0, 2*Math.PI);
         ctx.fill();
       }
 
-      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-        if(board[y][x] !== EMPTY) {
-          drawStone(ctx, pad + x*cell, pad + y*cell, cell*0.45, board[y][x]);
+      // камені
+      for (let y=0;y<SIZE;y++) {
+        for (let x=0;x<SIZE;x++) {
+          if (board[y][x] !== EMPTY) {
+            drawStone(ctx, coordsX[x], coordsY[y], cell*0.45, board[y][x]);
+          }
         }
       }
 
-      if(markingMode) {
-        for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-          if(board[y][x] === EMPTY && territoryMarks[y][x]) {
+      // режим маркування (півпрозорі кола на порожніх точках)
+      if (markingMode) {
+        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY && territoryMarks[y][x]) {
             ctx.save();
             ctx.globalAlpha = 0.45;
             ctx.fillStyle = STONE_COLORS[territoryMarks[y][x]];
             ctx.beginPath();
-            ctx.arc(pad + x*cell, pad + y*cell, cell*0.36, 0, 2*Math.PI);
+            ctx.arc(coordsX[x], coordsY[y], cell*0.36, 0, 2*Math.PI);
             ctx.fill();
             ctx.restore();
           }
         }
       }
 
-      if(gameOver && territoryMap) {
-        for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-          if(board[y][x] === EMPTY && territoryMap[y] && territoryMap[y][x]) {
+      // показ території після завершення гри
+      if (gameOver && territoryMap) {
+        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY && territoryMap[y] && territoryMap[y][x]) {
             const owner = territoryMap[y][x];
             ctx.save();
             const r = cell * 0.18;
             ctx.beginPath();
-            ctx.arc(pad + x*cell, pad + y*cell, r, 0, 2*Math.PI);
+            ctx.arc(coordsX[x], coordsY[y], r, 0, 2*Math.PI);
             ctx.fillStyle = STONE_COLORS[owner];
             ctx.fill();
             ctx.restore();
@@ -252,81 +272,96 @@
         }
       }
 
-      if(lastMove) {
-        const [x, y] = lastMove;
+      // останній хід підсвічено кружечком
+      if (lastMove) {
+        const [lx, ly] = lastMove;
         ctx.save();
         ctx.strokeStyle = LAST_MOVE_COLOR;
         ctx.lineWidth = cell*0.09;
         ctx.beginPath();
-        ctx.arc(pad + x*cell, pad + y*cell, cell*0.22, 0, 2*Math.PI);
+        ctx.arc(coordsX[lx], coordsY[ly], cell*0.22, 0, 2*Math.PI);
         ctx.stroke();
         ctx.restore();
       }
     }
 
-    function drawStone(ctx, cx, cy, r, color) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, 2*Math.PI);
-      ctx.fillStyle = STONE_COLORS[color];
-      ctx.fill();
-      ctx.restore();
+    function drawStone(ctxLocal, cx, cy, r, color) {
+      ctxLocal.save();
+      ctxLocal.beginPath();
+      ctxLocal.arc(cx, cy, r, 0, 2*Math.PI);
+      ctxLocal.fillStyle = STONE_COLORS[color];
+      ctxLocal.fill();
+      ctxLocal.restore();
     }
 
+    /* ========== Ввід користувача (натискання / торкання) ========== */
     canvas.addEventListener('click', handleInput);
-    canvas.addEventListener('touchstart', handleInput, {passive:false});
+    canvas.addEventListener('touchstart', handleInput, {passive: false});
 
     function handleInput(e) {
-      if(gameOver && !markingMode) return;
+      // Якщо гру завершено та не в режимі маркування — нічого не робимо
+      if (gameOver && !markingMode) return;
+
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const w = canvas.width;
-      const pad = w * 0.06;
-      const cell = (w - 2*pad) / (SIZE-1);
 
-      let xPx, yPx;
-      if (e.type.startsWith('touch')) {
+      let clientX, clientY;
+      if (e.type && e.type.startsWith('touch')) {
         e.preventDefault();
-        const touch = e.touches[0];
-        xPx = (touch.clientX - rect.left) * dpr;
-        yPx = (touch.clientY - rect.top) * dpr;
+        const t = e.touches[0] || e.changedTouches[0];
+        clientX = t.clientX; clientY = t.clientY;
       } else {
-        xPx = e.offsetX * dpr;
-        yPx = e.offsetY * dpr;
+        clientX = e.clientX; clientY = e.clientY;
       }
+
+      const xPx = (clientX - rect.left) * dpr;
+      const yPx = (clientY - rect.top) * dpr;
 
       let x = Math.round((xPx - pad) / cell);
       let y = Math.round((yPx - pad) / cell);
-      if(x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
+      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
 
-      if(markingMode) {
-        if(board[y][x] !== EMPTY) return;
-        territoryMarks[y][x] = territoryMarks[y][x] === markActive ? 0 : markActive;
+      // Маркування території
+      if (markingMode) {
+        if (board[y][x] !== EMPTY) return;
+        territoryMarks[y][x] = (territoryMarks[y][x] === markActive) ? 0 : markActive;
         draw();
         updateInfo();
         return;
       }
 
-      if(board[y][x] !== EMPTY) return;
-      let testBoard = board.map(row=>row.slice());
-      testBoard[y][x] = turn;
-      let captured = removeCaptured(testBoard, 3-turn);
-      let selfCapture = !hasLiberties(testBoard, x, y, turn, {});
-      if(selfCapture && captured.length===0) return;
+      // Рух каменя
+      if (board[y][x] !== EMPTY) return;
 
+      // Клонуємо дошку та кладемо камінь для перевірки
+      let testBoard = board.map(row => row.slice());
+      testBoard[y][x] = turn;
+
+      // видаляємо ворожі групи без свобод (якщо є)
+      let captured = removeCaptured(testBoard, 3 - turn);
+
+      // перевірка на самозахоплення
+      let selfCapture = !hasLiberties(testBoard, x, y, turn, {});
+      if (selfCapture && captured.length === 0) return; // незаконний хід
+
+      // Приймаємо хід
       board = testBoard;
       lastMove = [x, y];
       captures[turn] += captured.length;
       history.push({boardHash: hashBoard(board), move:[x,y], turn:turn});
-      turn = 3-turn;
+      turn = 3 - turn;
       passCount = 0;
+
       draw();
       updateInfo();
     }
+
+    /* ========== Кнопки: Пас / Маркер / Підрахунок / Очистити / Скидання ========== */
     passBtn.onclick = function() {
-      if(gameOver) return;
+      if (gameOver) return;
       passCount++;
-      if(passCount>=2) {
+      if (passCount >= 2) {
+        // перейти в режим маркування для фінального підрахунку
         markingMode = true;
         markActive = BLACK;
         territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
@@ -337,7 +372,7 @@
         draw();
         updateInfo();
       } else {
-        turn = 3-turn;
+        turn = 3 - turn;
         lastMove = null;
         draw();
         updateInfo();
@@ -362,50 +397,57 @@
 
     resetBtn.onclick = function() { init(); };
 
+    /* ========== Логіка захоплення / свободи ========== */
     function removeCaptured(bd, color) {
       let removed = [];
       let visited = {};
-      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-        if(bd[y][x]===color && !visited[`${x},${y}`]) {
-          let group = [];
-          if(!hasLiberties(bd, x, y, color, {}, group)) {
-            for(const [gx,gy] of group) {
-              bd[gy][gx] = EMPTY;
-              removed.push([gx,gy]);
+      for (let y=0;y<SIZE;y++) {
+        for (let x=0;x<SIZE;x++) {
+          if (bd[y][x] === color && !visited[`${x},${y}`]) {
+            let group = [];
+            if (!hasLiberties(bd, x, y, color, {}, group)) {
+              for (const [gx, gy] of group) {
+                bd[gy][gx] = EMPTY;
+                removed.push([gx, gy]);
+              }
             }
+            for (const [gx, gy] of group) visited[`${gx},${gy}`] = 1;
           }
-          for(const [gx,gy] of group) visited[`${gx},${gy}`]=1;
         }
       }
       return removed;
     }
 
     function hasLiberties(bd, x, y, color, visited, group) {
+      // visited — об'єкт, щоб уникнути повторного обходу; group — масив, якщо потрібно повернути групу
       let key = `${x},${y}`;
-      if(visited[key]) return false;
-      visited[key]=1;
-      if(group) group.push([x,y]);
-      for(const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-        let nx=x+dx, ny=y+dy;
-        if(nx<0||nx>=SIZE||ny<0||ny>=SIZE) continue;
-        if(bd[ny][nx]===EMPTY) return true;
-        if(bd[ny][nx]===color && !visited[`${nx},${ny}`]) {
-          if(hasLiberties(bd, nx, ny, color, visited, group)) return true;
+      if (visited[key]) return false;
+      visited[key] = 1;
+      if (group) group.push([x, y]);
+      for (const [dx, dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
+        let nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        if (bd[ny][nx] === EMPTY) return true;
+        if (bd[ny][nx] === color && !visited[`${nx},${ny}`]) {
+          if (hasLiberties(bd, nx, ny, color, visited, group)) return true;
         }
       }
       return false;
     }
 
+    /* ========== Територія (автопереназначення) ========== */
     function computeAutoTerritory() {
       let territory = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
       let visited = {};
-      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-        if(board[y][x]===EMPTY && !visited[`${x},${y}`]) {
-          let area = [];
-          let owner = territoryOwner(x,y,area);
-          for(const [ax,ay] of area) {
-            visited[`${ax},${ay}`]=1;
-            territory[ay][ax] = owner ? owner : 0;
+      for (let y=0;y<SIZE;y++) {
+        for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY && !visited[`${x},${y}`]) {
+            let area = [];
+            let owner = territoryOwner(x, y, area);
+            for (const [ax, ay] of area) {
+              visited[`${ax},${ay}`] = 1;
+              territory[ay][ax] = owner ? owner : 0;
+            }
           }
         }
       }
@@ -416,41 +458,43 @@
       let queue = [[x,y]];
       let owners = new Set();
       let visited = {};
-      while(queue.length) {
-        let [cx,cy] = queue.pop();
+      while (queue.length) {
+        let [cx, cy] = queue.pop();
         let key = `${cx},${cy}`;
-        if(visited[key]) continue;
-        visited[key]=1;
-        area.push([cx,cy]);
-        for(const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-          let nx=cx+dx, ny=cy+dy;
-          if(nx<0||nx>=SIZE||ny<0||ny>=SIZE) continue;
-          if(board[ny][nx]===EMPTY && !visited[`${nx},${ny}`]) queue.push([nx,ny]);
-          else if(board[ny][nx]!==EMPTY) owners.add(board[ny][nx]);
+        if (visited[key]) continue;
+        visited[key] = 1;
+        area.push([cx, cy]);
+        for (const [dx, dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
+          let nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+          if (board[ny][nx] === EMPTY && !visited[`${nx},${ny}`]) queue.push([nx,ny]);
+          else if (board[ny][nx] !== EMPTY) owners.add(board[ny][nx]);
         }
       }
-      return owners.size===1 ? [...owners][0] : null;
+      return owners.size === 1 ? [...owners][0] : null;
     }
 
+    /* ========== Хеш дошки (для історії / ко) ========== */
     function hashBoard(bd) {
-      return bd.map(row=>row.join("")).join("|");
+      return bd.map(row => row.join("")).join("|");
     }
 
+    /* ========== Підсумковий підрахунок ========== */
     function finalizeScoring() {
       const auto = computeAutoTerritory();
       let finalMap = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-        if(board[y][x] === EMPTY) {
-          if(auto[y][x] !== 0) finalMap[y][x] = auto[y][x];
-          else if(territoryMarks[y][x] !== 0) finalMap[y][x] = territoryMarks[y][x];
+      for (let y=0;y<SIZE;y++) {
+        for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY) {
+            if (auto[y][x] !== 0) finalMap[y][x] = auto[y][x];
+            else if (territoryMarks[y][x] !== 0) finalMap[y][x] = territoryMarks[y][x];
+          }
         }
       }
 
       let territory = {1:0, 2:0};
-      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-        if(board[y][x] === EMPTY && finalMap[y][x]) {
-          territory[finalMap[y][x]] += 1;
-        }
+      for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+        if (board[y][x] === EMPTY && finalMap[y][x]) territory[finalMap[y][x]] += 1;
       }
 
       const KOMI = 6.5;
@@ -465,8 +509,8 @@
                 `<b>Результат:</b><br>` +
                 `Чорні — територія: ${blackTerr}, захоплено: ${blackCap}, <b>разом: ${blackScore}</b><br>` +
                 `Білі — територія: ${whiteTerr}, захоплено: ${whiteCap}, комі: ${KOMI}, <b>разом: ${whiteScore}</b><br>`;
-      if(blackScore > whiteScore) msg += `<b>Перемогли Чорні!</b>`;
-      else if(blackScore < whiteScore) msg += `<b>Перемогли Білі!</b>`;
+      if (blackScore > whiteScore) msg += `<b>Перемогли Чорні!</b>`;
+      else if (blackScore < whiteScore) msg += `<b>Перемогли Білі!</b>`;
       else msg += `<b>Нічия!</b>`;
       msg += `</div>`;
 
@@ -482,20 +526,21 @@
       showInfo(msg);
     }
 
+    /* ========== Оновлення інформації внизу (рахунок / режим) ========== */
     function updateInfo() {
-      if(gameOver) return;
-      if(markingMode) {
+      if (gameOver) return;
+      if (markingMode) {
         const auto = computeAutoTerritory();
         let previewMap = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-        for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-          if(board[y][x]===EMPTY) {
-            if(auto[y][x] !== 0) previewMap[y][x] = auto[y][x];
-            else if(territoryMarks[y][x] !== 0) previewMap[y][x] = territoryMarks[y][x];
+        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY) {
+            if (auto[y][x] !== 0) previewMap[y][x] = auto[y][x];
+            else if (territoryMarks[y][x] !== 0) previewMap[y][x] = territoryMarks[y][x];
           }
         }
         let territory = {1:0, 2:0};
-        for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++) {
-          if(board[y][x]===EMPTY && previewMap[y][x]) territory[previewMap[y][x]]++;
+        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+          if (board[y][x] === EMPTY && previewMap[y][x]) territory[previewMap[y][x]]++;
         }
         const KOMI = 6.5;
         let blackScore = territory[1] + captures[1];
@@ -506,13 +551,16 @@
           `<br>Попередній рахунок → <div style="width:10px; height:10px; background:black; border-radius:50%; display:inline-block;"></div> <!-- чорний --> ${blackScore.toFixed(1)} : <div style="width:10px; height:10px; background:white; border-radius:50%; display:inline-block; border:1px solid black;"></div> <!-- білий --> ${whiteScore.toFixed(1)}`;
         return;
       }
-      info.innerHTML = (turn===BLACK?"Хід Чорних":"Хід Білих") +
+      info.innerHTML = (turn === BLACK ? "Хід Чорних" : "Хід Білих") +
         ` &nbsp;|&nbsp; Захоплено — <div style="width:10px; height:10px; background:black; border-radius:50%; display:inline-block;"></div> <!-- чорний --> ${captures[1]}  <div style="width:10px; height:10px; background:white; border-radius:50%; display:inline-block; border:1px solid black;"></div> <!-- білий --> ${captures[2]}` +
         ` &nbsp;|&nbsp; Для завершення: двічі пас.`;
     }
 
     function showInfo(msg) { info.innerHTML = msg; }
+
+    /* ========== Запуск гри ========== */
     init();
+
   </script>
 </body>
 </html>
