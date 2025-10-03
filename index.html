@@ -1,27 +1,23 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-  <title>Гра Ґо 9×9</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>Ґо</title>
 
-  <!-- Оригінальна SVG фавіконка (стежимо за id щоб зручно зчитувати) -->
+  <!-- Фавіконка SVG -->
   <link id="favlink" rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
     <circle cx="32" cy="32" r="28" fill="black"/>
     <circle cx="32" cy="32" r="20" fill="none" stroke="yellow" stroke-width="4"/>
   </svg>'>
 
-  <!-- PWA / iOS meta -->
+  <!-- PWA -->
   <meta name="theme-color" content="#dab357">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Ґо 9×9">
+  <meta name="apple-mobile-web-app-title" content="Ґо">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-
-  <!-- Placeholder manifest link — буде замінений динамічно на Blob URL -->
   <link id="manifest-link" rel="manifest" href="#">
-
-  <!-- apple-touch-icon placeholder (буде замінений динамічно) -->
   <link id="apple-touch" rel="apple-touch-icon" href="#">
 
   <style>
@@ -44,14 +40,23 @@
       min-height: 100vh;
       padding: 0;
     }
-    h1 {
-      font-size: 1.3em;
-      font-weight: 600;
+    #board-selector {
+      display: flex;
+      gap: 0.8em;
       margin: 1em 0 0.5em 0;
-      letter-spacing: 0.05em;
-      color: #f5f5f5;
-      text-align: center;
     }
+    #board-selector button {
+      background: #333;
+      color: #eee;
+      border: none;
+      border-radius: 0.5em;
+      padding: 0.45em 0.9em;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.15s;
+      outline: none;
+    }
+    #board-selector button.active { background: #555; }
     #go-container {
       width: 87vw;
       max-width: 87vmin;
@@ -86,7 +91,7 @@
       display: flex;
       gap: 0.6em;
       justify-content: center;
-      margin: 5em 0 1em 0;
+      margin: 5.2em 0 1em 0;
       flex-wrap: wrap;
     }
     button {
@@ -103,11 +108,9 @@
     button:active { background: #444; }
     .muted { opacity: 0.86; }
     @media (max-width: 600px) {
-      h1 { font-size: 1em; }
+      #board-selector button { font-size: 0.95em; padding: 0.45em 0.7em; }
       #go-container { max-width: 99vw; }
-      button { font-size: 0.95em; padding: 0.45em 0.7em; }
     }
-    /* невеликий банер для показу інструкцій додавання на головний екран (iOS робить це вручну) */
     #install-note {
       position: fixed;
       left: 12px;
@@ -125,11 +128,18 @@
   </style>
 </head>
 <body>
-  <h1>Ґо 9×9</h1>
-  <div id="go-container">
-    <canvas id="go-board"></canvas>
+  <div id="board-selector">
+    <button data-size="9" class="active" aria-pressed="true">9×9</button>
+    <button data-size="13" aria-pressed="false">13×13</button>
+    <button data-size="19" aria-pressed="false">19×19</button>
   </div>
-  <div id="info"></div>
+
+  <div id="go-container">
+    <canvas id="go-board" role="img" aria-label="Дошка гри Ґо"></canvas>
+  </div>
+
+  <div id="info" aria-live="polite"></div>
+
   <div id="controls">
     <button id="pass-btn">Пас</button>
     <button id="toggle-mark-btn" style="display:none">Маркер: Чорні</button>
@@ -138,634 +148,533 @@
     <button id="reset-btn">Нова гра</button>
   </div>
 
-  <script>
-    /* ================== Ігрова логіка (з вашого файлу) ================== */
-    /* ========== Константи та DOM ========== */
-    const SIZE = 9;
-    const EMPTY = 0, BLACK = 1, WHITE = 2;
-    const STONE_COLORS = {1: "#222", 2: "#eee"};
-    const BOARD_COLOR = "#dab357";
-    const LINE_COLOR = "#444";
-    const LAST_MOVE_COLOR = "#f5c242";
-    const STAR_COLOR = "#444";
-    const STAR_POINTS = [[2,2],[2,6],[6,2],[6,6],[4,4]];
-    const LETTERS = "ABCDEFGHI".split("");
+  <div id="install-note">Щоб додати цей сайт на головний екран: використайте «Поділитися» → «На екран Додому»</div>
 
-    const canvas = document.getElementById('go-board');
-    const info = document.getElementById('info');
-    const passBtn = document.getElementById('pass-btn');
-    const resetBtn = document.getElementById('reset-btn');
-    const container = document.getElementById('go-container');
-    const toggleMarkBtn = document.getElementById('toggle-mark-btn');
-    const finalCountBtn = document.getElementById('final-count-btn');
-    const clearMarksBtn = document.getElementById('clear-marks-btn');
-    const ctx = canvas.getContext('2d');
+<script>
+/* ================== Константи ================== */
+let SIZE = 9;
+const EMPTY = 0, BLACK = 1, WHITE = 2;
+const STONE_COLORS = {1: "#222", 2: "#eee"};
+const BOARD_COLOR = "#dab357";
+const LINE_COLOR = "#444";
+const LAST_MOVE_COLOR = "#f5c242";
+const STAR_COLOR = "#444";
+const STAR_PATTERNS = {
+  9: [[2,2],[2,6],[6,2],[6,6],[4,4]],
+  13: [[3,3],[3,9],[9,3],[9,9],[6,6]],
+  19: [[3,3],[3,9],[3,15],[9,3],[9,9],[9,15],[15,3],[15,9],[15,15]]
+};
+const LETTERS_ALL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-    /* ========== Ігровий стан ========== */
-    let board, turn, ko, captures, history, passCount, gameOver, lastMove, territoryMap;
-    let markingMode, territoryMarks, markActive;
+// DOM
+const canvas = document.getElementById('go-board');
+const ctx = canvas.getContext('2d');
+const info = document.getElementById('info');
+const passBtn = document.getElementById('pass-btn');
+const resetBtn = document.getElementById('reset-btn');
+const toggleMarkBtn = document.getElementById('toggle-mark-btn');
+const finalCountBtn = document.getElementById('final-count-btn');
+const clearMarksBtn = document.getElementById('clear-marks-btn');
+const container = document.getElementById('go-container');
 
-    /* ========== Кеш для малювання ========== */
-    let pad = 0, cell = 0;
-    let coordsX = [], coordsY = [];
+// Ігровий стан
+let board, turn, ko, captures, history, passCount, gameOver, lastMove, territoryMap;
+let markingMode, territoryMarks, markActive;
 
-    /* ========== Ініціалізація ========== */
-    function init() {
-      board = Array.from({length: SIZE}, () => Array(SIZE).fill(EMPTY));
-      turn = BLACK;
-      ko = null;
-      captures = {1:0, 2:0};
-      history = [];
-      passCount = 0;
-      gameOver = false;
-      lastMove = null;
-      territoryMap = null;
+// Кеш
+let pad = 0, cell = 0;
+let coordsX = [], coordsY = [];
 
-      markingMode = false;
-      territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-      markActive = BLACK;
-
-      toggleMarkBtn.style.display = 'none';
-      finalCountBtn.style.display = 'none';
-      clearMarksBtn.style.display = 'none';
-      passBtn.style.display = 'inline-block';
-
-      resizeCanvas(); // також викликає draw через debounce
-      updateInfo();
-    }
-
-    /* ========== Розмір канвасу (debounce) ========== */
-    let resizeTimer = null;
-    function resizeCanvas() {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        const rect = container.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.max(100, Math.floor(rect.width * dpr));
-        canvas.height = Math.max(100, Math.floor(rect.height * dpr));
-        canvas.style.width = rect.width + "px";
-        canvas.style.height = rect.height + "px";
-
-        pad = canvas.width * 0.06;
-        cell = (canvas.width - 2*pad) / (SIZE - 1);
-
-        // Кеш координат в пікселях рендеру (device pixels)
-        coordsX = Array.from({length: SIZE}, (_, i) => pad + i*cell);
-        coordsY = Array.from({length: SIZE}, (_, i) => pad + i*cell);
-
-        draw();
-      }, 120); // 120ms debounce щоб уникнути зайвих перемальовувань під час ресайзу
-    }
-    window.addEventListener('resize', resizeCanvas);
-
-    /* ========== Малювання ========== */
-    function draw() {
-      // Налаштування контексту
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-
-      // фон дошки
-      ctx.fillStyle = BOARD_COLOR;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-
-      // лінії
-      ctx.strokeStyle = LINE_COLOR;
-      ctx.lineWidth = Math.max(1, cell * 0.035);
-      for (let i=0;i<SIZE;i++) {
-        ctx.beginPath();
-        ctx.moveTo(coordsX[i], pad);
-        ctx.lineTo(coordsX[i], canvas.height - pad);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(pad, coordsY[i]);
-        ctx.lineTo(canvas.width - pad, coordsY[i]);
-        ctx.stroke();
-      }
-
-      // підписи
-      ctx.fillStyle = "#444";
-      ctx.font = `${cell*0.2}px Segoe UI, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      for (let i=0;i<SIZE;i++) {
-        ctx.fillText(LETTERS[i], coordsX[i], pad*0.5);
-        ctx.fillText(LETTERS[i], coordsX[i], canvas.height - pad*0.5);
-        ctx.fillText(SIZE-i, pad*0.5, coordsY[i]);
-        ctx.fillText(SIZE-i, canvas.width - pad*0.5, coordsY[i]);
-      }
-
-      // зоряні точки (hoshi)
-      ctx.fillStyle = STAR_COLOR;
-      for (const [sx, sy] of STAR_POINTS) {
-        ctx.beginPath();
-        ctx.arc(coordsX[sx], coordsY[sy], cell*0.13, 0, 2*Math.PI);
-        ctx.fill();
-      }
-
-      // камені
-      for (let y=0;y<SIZE;y++) {
-        for (let x=0;x<SIZE;x++) {
-          if (board[y][x] !== EMPTY) {
-            drawStone(ctx, coordsX[x], coordsY[y], cell*0.45, board[y][x]);
-          }
-        }
-      }
-
-      // режим маркування (півпрозорі кола на порожніх точках)
-      if (markingMode) {
-        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY && territoryMarks[y][x]) {
-            ctx.save();
-            ctx.globalAlpha = 0.45;
-            ctx.fillStyle = STONE_COLORS[territoryMarks[y][x]];
-            ctx.beginPath();
-            ctx.arc(coordsX[x], coordsY[y], cell*0.36, 0, 2*Math.PI);
-            ctx.fill();
-            ctx.restore();
-          }
-        }
-      }
-
-      // показ території після завершення гри
-      if (gameOver && territoryMap) {
-        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY && territoryMap[y] && territoryMap[y][x]) {
-            const owner = territoryMap[y][x];
-            ctx.save();
-            const r = cell * 0.18;
-            ctx.beginPath();
-            ctx.arc(coordsX[x], coordsY[y], r, 0, 2*Math.PI);
-            ctx.fillStyle = STONE_COLORS[owner];
-            ctx.fill();
-            ctx.restore();
-          }
-        }
-      }
-
-      // останній хід підсвічено кружечком
-      if (lastMove) {
-        const [lx, ly] = lastMove;
-        ctx.save();
-        ctx.strokeStyle = LAST_MOVE_COLOR;
-        ctx.lineWidth = cell*0.09;
-        ctx.beginPath();
-        ctx.arc(coordsX[lx], coordsY[ly], cell*0.22, 0, 2*Math.PI);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    function drawStone(ctxLocal, cx, cy, r, color) {
-      ctxLocal.save();
-      ctxLocal.beginPath();
-      ctxLocal.arc(cx, cy, r, 0, 2*Math.PI);
-      ctxLocal.fillStyle = STONE_COLORS[color];
-      ctxLocal.fill();
-      ctxLocal.restore();
-    }
-
-    /* ========== Ввід користувача (натискання / торкання) ========== */
-    canvas.addEventListener('click', handleInput);
-    canvas.addEventListener('touchstart', handleInput, {passive: false});
-
-    function handleInput(e) {
-      // Якщо гру завершено та не в режимі маркування — нічого не робимо
-      if (gameOver && !markingMode) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-
-      let clientX, clientY;
-      if (e.type && e.type.startsWith('touch')) {
-        e.preventDefault();
-        const t = e.touches[0] || e.changedTouches[0];
-        clientX = t.clientX; clientY = t.clientY;
-      } else {
-        clientX = e.clientX; clientY = e.clientY;
-      }
-
-      const xPx = (clientX - rect.left) * dpr;
-      const yPx = (clientY - rect.top) * dpr;
-
-      let x = Math.round((xPx - pad) / cell);
-      let y = Math.round((yPx - pad) / cell);
-      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
-
-      // Маркування території
-      if (markingMode) {
-        if (board[y][x] !== EMPTY) return;
-        territoryMarks[y][x] = (territoryMarks[y][x] === markActive) ? 0 : markActive;
-        draw();
-        updateInfo();
-        return;
-      }
-
-      // Рух каменя
-      if (board[y][x] !== EMPTY) return;
-
-      // Клонуємо дошку та кладемо камінь для перевірки
-      let testBoard = board.map(row => row.slice());
-      testBoard[y][x] = turn;
-
-      // видаляємо ворожі групи без свобод (якщо є)
-      let captured = removeCaptured(testBoard, 3 - turn);
-
-      // перевірка на самозахоплення
-      let selfCapture = !hasLiberties(testBoard, x, y, turn, {});
-      if (selfCapture && captured.length === 0) return; // незаконний хід
-
-      // Приймаємо хід
-      board = testBoard;
-      lastMove = [x, y];
-      captures[turn] += captured.length;
-      history.push({boardHash: hashBoard(board), move:[x,y], turn:turn});
-      turn = 3 - turn;
-      passCount = 0;
-
-      draw();
-      updateInfo();
-    }
-
-    /* ========== Кнопки: Пас / Маркер / Підрахунок / Очистити / Скидання ========== */
-    passBtn.onclick = function() {
-      if (gameOver) return;
-      passCount++;
-      if (passCount >= 2) {
-        // перейти в режим маркування для фінального підрахунку
-        markingMode = true;
-        markActive = BLACK;
-        territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-        toggleMarkBtn.style.display = 'inline-block';
-        finalCountBtn.style.display = 'inline-block';
-        clearMarksBtn.style.display = 'inline-block';
-        passBtn.style.display = 'none';
-        draw();
-        updateInfo();
-      } else {
-        turn = 3 - turn;
-        lastMove = null;
-        draw();
-        updateInfo();
-      }
-    };
-
-    toggleMarkBtn.onclick = function() {
-      markActive = (markActive === BLACK) ? WHITE : BLACK;
-      toggleMarkBtn.innerText = markActive === BLACK ? 'Маркер: Чорні' : 'Маркер: Білі';
-      updateInfo();
-    };
-
-    clearMarksBtn.onclick = function() {
-      territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-      draw();
-      updateInfo();
-    };
-
-    finalCountBtn.onclick = function() {
-      finalizeScoring();
-    };
-
-    resetBtn.onclick = function() { init(); };
-
-    /* ========== Логіка захоплення / свободи ========== */
-    function removeCaptured(bd, color) {
-      let removed = [];
-      let visited = {};
-      for (let y=0;y<SIZE;y++) {
-        for (let x=0;x<SIZE;x++) {
-          if (bd[y][x] === color && !visited[`${x},${y}`]) {
-            let group = [];
-            if (!hasLiberties(bd, x, y, color, {}, group)) {
-              for (const [gx, gy] of group) {
-                bd[gy][gx] = EMPTY;
-                removed.push([gx, gy]);
-              }
-            }
-            for (const [gx, gy] of group) visited[`${gx},${gy}`] = 1;
-          }
-        }
-      }
-      return removed;
-    }
-
-    function hasLiberties(bd, x, y, color, visited, group) {
-      // visited — об'єкт, щоб уникнути повторного обходу; group — масив, якщо потрібно повернути групу
-      let key = `${x},${y}`;
-      if (visited[key]) return false;
-      visited[key] = 1;
-      if (group) group.push([x, y]);
-      for (const [dx, dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-        let nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
-        if (bd[ny][nx] === EMPTY) return true;
-        if (bd[ny][nx] === color && !visited[`${nx},${ny}`]) {
-          if (hasLiberties(bd, nx, ny, color, visited, group)) return true;
-        }
-      }
-      return false;
-    }
-
-    /* ========== Територія (автопереназначення) ========== */
-    function computeAutoTerritory() {
-      let territory = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-      let visited = {};
-      for (let y=0;y<SIZE;y++) {
-        for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY && !visited[`${x},${y}`]) {
-            let area = [];
-            let owner = territoryOwner(x, y, area);
-            for (const [ax, ay] of area) {
-              visited[`${ax},${ay}`] = 1;
-              territory[ay][ax] = owner ? owner : 0;
-            }
-          }
-        }
-      }
-      return territory;
-    }
-
-    function territoryOwner(x,y,area) {
-      let queue = [[x,y]];
-      let owners = new Set();
-      let visited = {};
-      while (queue.length) {
-        let [cx, cy] = queue.pop();
-        let key = `${cx},${cy}`;
-        if (visited[key]) continue;
-        visited[key] = 1;
-        area.push([cx, cy]);
-        for (const [dx, dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
-          let nx = cx + dx, ny = cy + dy;
-          if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
-          if (board[ny][nx] === EMPTY && !visited[`${nx},${ny}`]) queue.push([nx,ny]);
-          else if (board[ny][nx] !== EMPTY) owners.add(board[ny][nx]);
-        }
-      }
-      return owners.size === 1 ? [...owners][0] : null;
-    }
-
-    /* ========== Хеш дошки (для історії / ко) ========== */
-    function hashBoard(bd) {
-      return bd.map(row => row.join("")).join("|");
-    }
-
-    /* ========== Підсумковий підрахунок ========== */
-    function finalizeScoring() {
-      const auto = computeAutoTerritory();
-      let finalMap = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-      for (let y=0;y<SIZE;y++) {
-        for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY) {
-            if (auto[y][x] !== 0) finalMap[y][x] = auto[y][x];
-            else if (territoryMarks[y][x] !== 0) finalMap[y][x] = territoryMarks[y][x];
-          }
-        }
-      }
-
-      let territory = {1:0, 2:0};
-      for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
-        if (board[y][x] === EMPTY && finalMap[y][x]) territory[finalMap[y][x]] += 1;
-      }
-
-      const KOMI = 6.5;
-      let blackTerr = territory[1];
-      let whiteTerr = territory[2];
-      let blackCap = captures[1];
-      let whiteCap = captures[2];
-      let blackScore = blackTerr + blackCap;
-      let whiteScore = whiteTerr + whiteCap + KOMI;
-
-      let msg = `<div style="line-height:1.4; text-align:center;">` +
-                `<b>Результат:</b><br>` +
-                `Чорні — територія: ${blackTerr}, захоплено: ${blackCap}, <b>разом: ${blackScore}</b><br>` +
-                `Білі — територія: ${whiteTerr}, захоплено: ${whiteCap}, комі: ${KOMI}, <b>разом: ${whiteScore}</b><br>`;
-      if (blackScore > whiteScore) msg += `<b>Перемогли Чорні!</b>`;
-      else if (blackScore < whiteScore) msg += `<b>Перемогли Білі!</b>`;
-      else msg += `<b>Нічия!</b>`;
-      msg += `</div>`;
-
-      territoryMap = finalMap;
-      gameOver = true;
-      markingMode = false;
-      toggleMarkBtn.style.display = 'none';
-      finalCountBtn.style.display = 'none';
-      clearMarksBtn.style.display = 'none';
-      passBtn.style.display = 'none';
-
-      draw();
-      showInfo(msg);
-    }
-
-    /* ========== Оновлення інформації внизу (рахунок / режим) ========== */
-    function updateInfo() {
-      if (gameOver) return;
-      if (markingMode) {
-        const auto = computeAutoTerritory();
-        let previewMap = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
-        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY) {
-            if (auto[y][x] !== 0) previewMap[y][x] = auto[y][x];
-            else if (territoryMarks[y][x] !== 0) previewMap[y][x] = territoryMarks[y][x];
-          }
-        }
-        let territory = {1:0, 2:0};
-        for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
-          if (board[y][x] === EMPTY && previewMap[y][x]) territory[previewMap[y][x]]++;
-        }
-        const KOMI = 6.5;
-        let blackScore = territory[1] + captures[1];
-        let whiteScore = territory[2] + captures[2] + KOMI;
-
-        const who = markActive === BLACK ? 'Чорні' : 'Білі';
-        info.innerHTML = `Режим маркування: активний маркер — <b>${who}</b>` +
-          `<br>Попередній рахунок → <div style="width:10px; height:10px; background:black; border-radius:50%; display:inline-block;"></div> <!-- чорний --> ${blackScore.toFixed(1)} : <div style="width:10px; height:10px; background:white; border-radius:50%; display:inline-block; border:1px solid black;"></div> <!-- білий --> ${whiteScore.toFixed(1)}`;
-        return;
-      }
-      info.innerHTML = (turn === BLACK ? "Хід Чорних" : "Хід Білих") +
-        ` &nbsp;|&nbsp; Захоплено — <div style="width:10px; height:10px; background:black; border-radius:50%; display:inline-block;"></div> <!-- чорний --> ${captures[1]}  <div style="width:10px; height:10px; background:white; border-radius:50%; display:inline-block; border:1px solid black;"></div> <!-- білий --> ${captures[2]}` +
-        ` &nbsp;|&nbsp; Для завершення: двічі пас.`;
-    }
-
-    function showInfo(msg) { info.innerHTML = msg; }
-
-    /* ========== Запуск гри ========== */
+// Offscreen фон
+const backgroundCanvas = document.createElement('canvas');
+const backgroundCtx = backgroundCanvas.getContext('2d', { alpha: false });
+/* ================== Ініціалізація ================== */
+document.querySelectorAll('#board-selector button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#board-selector button').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    SIZE = parseInt(btn.dataset.size, 10);
     init();
+  });
+});
 
-    /* ================== PWA: manifest, icons, service worker ================== */
+function init() {
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(EMPTY));
+  turn = BLACK; ko = null;
+  captures = {1:0, 2:0}; history = [];
+  passCount = 0; gameOver = false;
+  lastMove = null; territoryMap = null;
+  markingMode = false;
+  territoryMarks = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  markActive = BLACK;
 
-    // Кроки:
-    // 1) Зчитуємо SVG фавіконку з <link id="favlink">
-    // 2) Малюємо її в canvas різних розмірів, створюємо PNG dataURL (для apple-touch-icon та manifest)
-    // 3) Створюємо manifest JSON як Blob і підключаємо його до <link rel="manifest">
-    // 4) Реєструємо service worker, створений з JS-коду у Blob (щоб залишитись в одному файлі)
-    (async function preparePWA() {
-      try {
-        const favLink = document.getElementById('favlink');
-        const svgURL = favLink.href;
+  toggleMarkBtn.style.display = 'none';
+  finalCountBtn.style.display = 'none';
+  clearMarksBtn.style.display = 'none';
+  passBtn.style.display = 'inline-block';
 
-        // Функція: конвертує SVG URL -> PNG dataURL розміру size
-        function svgToPngDataUrl(svgUrl, size) {
-          return new Promise((resolve, reject) => {
-            const img = new Image();
-            // Важливо: allow tainting? SVG dataURL без зовнішніх ресурсів - безпечний
-            img.crossOrigin = 'anonymous';
-            img.onload = function() {
-              const c = document.createElement('canvas');
-              c.width = size; c.height = size;
-              const cx = c.getContext('2d');
-              // Заповнимо білим фоном (щоб білі частини були видимі)
-              cx.fillStyle = '#00000000';
-              cx.fillRect(0,0,size,size);
-              // Розмалюємо зображення в вместити
-              // Preserve aspect by drawing centered
-              cx.drawImage(img, 0, 0, size, size);
-              try {
-                const png = c.toDataURL('image/png');
-                resolve(png);
-              } catch (err) {
-                reject(err);
-              }
-            };
-            img.onerror = function(e) { reject(e || new Error('Image load error')); };
-            img.src = svgUrl;
-            // Якщо src — data:image/svg+xml;utf8,<svg...> — воно має завантажитись
-          });
-        }
+  resizeCanvas();
+  updateInfo();
+}
 
-        // створюємо набор іконок
-        const iconSizes = [192, 512]; // для web manifest
-        const manifestIcons = [];
-        for (const s of iconSizes) {
-          try {
-            const png = await svgToPngDataUrl(svgURL, s);
-            manifestIcons.push({src: png, sizes: `${s}x${s}`, type: 'image/png', purpose: 'any'});
-          } catch (e) {
-            // якщо що — нічого не падає, пропускаємо
-            console.warn('Не вдалося створити іконку', s, e);
-          }
-        }
+/* ================== Canvas resize ================== */
+let resizeTimer = null;
+function resizeCanvas() {
+  if (resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(100, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(100, Math.floor(rect.height * dpr));
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    pad = canvas.width * 0.06;
+    cell = (canvas.width - 2*pad) / (SIZE - 1);
+    coordsX = Array.from({length: SIZE}, (_, i) => pad + i*cell);
+    coordsY = Array.from({length: SIZE}, (_, i) => pad + i*cell);
 
-        // створюємо apple-touch-icon (180x180)
-        let applePng = null;
-        try {
-          applePng = await svgToPngDataUrl(svgURL, 180);
-          document.getElementById('apple-touch').href = applePng;
-        } catch (e) {
-          console.warn('apple icon error', e);
-        }
+    // Підготовка фонового canvas
+    backgroundCanvas.width = canvas.width;
+    backgroundCanvas.height = canvas.height;
+    drawStaticBoard();
 
-        // Створюємо manifest JSON (додаємо generated icons)
-        const startUrl = location.pathname + location.search;
-        const manifest = {
-          name: "Ґо 9×9",
-          short_name: "Ґо 9×9",
-          description: "Проста настільна гра Ґо 9×9 — повністю в одному index.html",
-          start_url: startUrl,
-          scope: "/",
-          display: "standalone",
-          background_color: "#181a1b",
-          theme_color: "#dab357",
-          icons: manifestIcons
-        };
+    draw();
+  }, 120);
+}
+window.addEventListener('resize', resizeCanvas);
 
-        // Створюємо blob і підключаємо як manifest
-        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-        const manifestURL = URL.createObjectURL(manifestBlob);
-        const manifestLink = document.getElementById('manifest-link');
-        manifestLink.href = manifestURL;
+/* ================== Малювання ================== */
+function drawStaticBoard() {
+  backgroundCtx.fillStyle = BOARD_COLOR;
+  backgroundCtx.fillRect(0,0,backgroundCanvas.width,backgroundCanvas.height);
+  backgroundCtx.strokeStyle = LINE_COLOR;
+  backgroundCtx.lineWidth = Math.max(1, cell * 0.035);
+  for (let i=0;i<SIZE;i++) {
+    backgroundCtx.beginPath();
+    backgroundCtx.moveTo(coordsX[i], pad);
+    backgroundCtx.lineTo(coordsX[i], backgroundCanvas.height - pad);
+    backgroundCtx.stroke();
+    backgroundCtx.beginPath();
+    backgroundCtx.moveTo(pad, coordsY[i]);
+    backgroundCtx.lineTo(backgroundCanvas.width - pad, coordsY[i]);
+    backgroundCtx.stroke();
+  }
+  const LETTERS = LETTERS_ALL.slice(0, SIZE);
+  backgroundCtx.fillStyle = "#444";
+  backgroundCtx.font = `${cell*0.2}px Segoe UI, sans-serif`;
+  backgroundCtx.textAlign="center"; backgroundCtx.textBaseline="middle";
+  for (let i=0;i<SIZE;i++) {
+    backgroundCtx.fillText(LETTERS[i], coordsX[i], pad*0.5);
+    backgroundCtx.fillText(LETTERS[i], coordsX[i], backgroundCanvas.height - pad*0.5);
+    backgroundCtx.fillText(SIZE - i, pad*0.5, coordsY[i]);
+    backgroundCtx.fillText(SIZE - i, backgroundCanvas.width - pad*0.5, coordsY[i]);
+  }
+  backgroundCtx.fillStyle = STAR_COLOR;
+  for (const [sx,sy] of (STAR_PATTERNS[SIZE]||[])) {
+    if (sx>=0 && sx<SIZE && sy>=0 && sy<SIZE) {
+      backgroundCtx.beginPath();
+      backgroundCtx.arc(coordsX[sx], coordsY[sy], cell*0.13, 0, 2*Math.PI);
+      backgroundCtx.fill();
+    }
+  }
+}
 
-        // Показуємо інструкцію для iOS (бо iOS не використовує manifest автоматично)
-        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-        if (isIOS) {
-          document.getElementById('install-note').style.display = 'block';
-        }
+function draw() {
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(backgroundCanvas,0,0);
+  drawDynamicElements();
+}
 
-        // Реєструємо service worker із коду у Blob (щоб зберегти один файл)
-        if ('serviceWorker' in navigator) {
-          // service worker code (можете дописати / кастомізувати кешування)
-          const swCode = `
-            const CACHE_NAME = 'paw-go-cache-v1';
-            const OFFLINE_FALLBACK_HTML = '/';
-            self.addEventListener('install', (e) => {
-              self.skipWaiting();
-              e.waitUntil((async () => {
-                const cache = await caches.open(CACHE_NAME);
-                // кешуємо сам документ (якщо доступно) і root
-                try {
-                  // Під час встановлення спробуємо зберегти сторінку
-                  const req = new Request(location.pathname, {cache: 'no-cache'});
-                  const resp = await fetch(req);
-                  if (resp && resp.ok) await cache.put(req, resp.clone());
-                } catch (err) {
-                  // ігноруємо помилки мережі під час інсталяції
-                }
-                // кешуємо root і manifest для офлайну
-                try { await cache.addAll(['/','/index.html']); } catch(e) {}
-              })());
-            });
-
-            self.addEventListener('activate', (e) => {
-              e.waitUntil((async () => {
-                // прибираємо старі кеші (елементарно)
-                const keys = await caches.keys();
-                await Promise.all(keys.map(k => { if (k !== CACHE_NAME) return caches.delete(k); }));
-                self.clients.claim();
-              })());
-            });
-
-            self.addEventListener('fetch', (e) => {
-              // простий cache-first для тих самих origin запитів
-              const req = e.request;
-              if (req.method !== 'GET') return;
-              e.respondWith((async () => {
-                const cache = await caches.open(CACHE_NAME);
-                const cached = await cache.match(req);
-                if (cached) return cached;
-                try {
-                  const networkResp = await fetch(req);
-                  // кешуємо відповіді для same-origin (не обов'язково все)
-                  if (networkResp && networkResp.ok && req.url.startsWith(self.location.origin)) {
-                    cache.put(req, networkResp.clone()).catch(()=>{});
-                  }
-                  return networkResp;
-                } catch (err) {
-                  // Якщо нічого не знайдено — повертайте cached root як fallback
-                  const fallback = await cache.match('/');
-                  if (fallback) return fallback;
-                  return new Response('Offline', {status: 503, statusText: 'Offline'});
-                }
-              })());
-            });
-          `;
-
-          // створюємо blob та реєструємо
-          const swBlob = new Blob([swCode], {type: 'application/javascript'});
-          const swURL = URL.createObjectURL(swBlob);
-
-          try {
-            const reg = await navigator.serviceWorker.register(swURL, {scope: './'});
-            console.log('Service worker registered at', swURL, reg);
-
-            // після реєстрації можна відв'язати URL якщо хочемо
-            // (але в деяких браузерах посилання може використовуватись, тому можна лишити)
-            // URL.revokeObjectURL(swURL);
-
-            // optional: показувати нотифікатор, коли офлайн-доступ став доступним
-            reg.addEventListener && reg.addEventListener('updatefound', () => {
-              console.log('SW update found');
-            });
-          } catch (err) {
-            console.warn('ServiceWorker register failed:', err);
-          }
-        } else {
-          console.log('Service worker не підтримується в цьому браузері');
-        }
-
-      } catch (err) {
-        console.error('preparePWA error', err);
+function drawDynamicElements() {
+  for (let y=0;y<SIZE;y++) {
+    for (let x=0;x<SIZE;x++) {
+      if (board[y][x] !== EMPTY) {
+        drawStone(ctx, coordsX[x], coordsY[y], cell*0.45, board[y][x]);
       }
-    })();
-  </script>
+    }
+  }
+  if (markingMode) {
+    for (let y=0;y<SIZE;y++) {
+      for (let x=0;x<SIZE;x++) {
+        if (board[y][x]===EMPTY && territoryMarks[y][x]) {
+          ctx.save();
+          ctx.globalAlpha = 0.45;
+          ctx.fillStyle = STONE_COLORS[territoryMarks[y][x]];
+          ctx.beginPath();
+          ctx.arc(coordsX[x], coordsY[y], cell*0.36, 0, 2*Math.PI);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+  }
+  if (gameOver && territoryMap) {
+    for (let y=0;y<SIZE;y++) {
+      for (let x=0;x<SIZE;x++) {
+        if (board[y][x]===EMPTY && territoryMap[y] && territoryMap[y][x]) {
+          const owner=territoryMap[y][x];
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(coordsX[x], coordsY[y], cell*0.18, 0, 2*Math.PI);
+          ctx.fillStyle=STONE_COLORS[owner];
+          ctx.fill(); ctx.restore();
+        }
+      }
+    }
+  }
+  if (lastMove) {
+    const [lx,ly] = lastMove;
+    ctx.save();
+    ctx.strokeStyle = LAST_MOVE_COLOR;
+    ctx.lineWidth = cell*0.09;
+    ctx.beginPath();
+    ctx.arc(coordsX[lx], coordsY[ly], cell*0.22, 0, 2*Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawStone(ctxLocal, cx, cy, r, color) {
+  ctxLocal.beginPath();
+  ctxLocal.arc(cx, cy, r, 0, 2*Math.PI);
+  ctxLocal.fillStyle = STONE_COLORS[color];
+  ctxLocal.fill();
+}
+
+/* ================== Події користувача ================== */
+canvas.addEventListener('pointerdown', handleInput);
+
+function handleInput(e) {
+  if (gameOver && !markingMode) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  let clientX = e.clientX, clientY = e.clientY;
+  if (e.pointerType === "touch" && e.touches && e.touches[0]) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  }
+
+  const xPx = (clientX - rect.left) * dpr;
+  const yPx = (clientY - rect.top) * dpr;
+
+  const rawX = (xPx - pad) / cell;
+  const rawY = (yPx - pad) / cell;
+
+  let x = Math.round(rawX);
+  let y = Math.round(rawY);
+
+  if (x < 0) x = 0; if (x >= SIZE) x = SIZE-1;
+  if (y < 0) y = 0; if (y >= SIZE) y = SIZE-1;
+
+  const dx = xPx - coordsX[x];
+  const dy = yPx - coordsY[y];
+  const maxAcceptDist = cell * 0.6;
+  if (dx*dx + dy*dy > maxAcceptDist*maxAcceptDist) return;
+
+  requestAnimationFrame(()=>{
+    if (markingMode) {
+      if (board[y][x]!==EMPTY) return;
+      territoryMarks[y][x] = (territoryMarks[y][x]===markActive)?0:markActive;
+      draw(); updateInfo();
+    } else {
+      if (board[y][x]!==EMPTY) return;
+      playMove(x,y);
+    }
+  });
+}
+/* ================== Ходи ================== */
+function playMove(x,y) {
+  let testBoard = board.map(r=>r.slice());
+  testBoard[y][x] = turn;
+  let captured = removeCaptured(testBoard, 3-turn);
+  let selfCapture = !hasLiberties(testBoard,x,y,turn,new Set(),[]);
+  if (selfCapture && captured.length===0) return;
+  const newHash = hashBoard(testBoard);
+  if (ko && ko===newHash) return;
+
+  board = testBoard;
+  lastMove=[x,y];
+  captures[turn]+=captured.length;
+  history.push({boardHash:hashBoard(board), move:[x,y], turn:turn});
+  if (captured.length===1) {
+    ko = history.length? history[history.length-1].boardHash:null;
+  } else ko=null;
+  turn=3-turn; passCount=0;
+  draw(); updateInfo();
+}
+
+/* ================== Захоплення ================== */
+function removeCaptured(bd,color) {
+  let removed=[]; let visited=new Set();
+  for (let y=0;y<SIZE;y++) {
+    for (let x=0;x<SIZE;x++) {
+      if (bd[y][x]===color && !visited.has(`${x},${y}`)) {
+        let group=[];
+        if (!hasLiberties(bd,x,y,color,new Set(),group)) {
+          for (const [gx,gy] of group) {
+            bd[gy][gx]=EMPTY; removed.push([gx,gy]);
+          }
+        }
+        for (const [gx,gy] of group) visited.add(`${gx},${gy}`);
+      }
+    }
+  }
+  return removed;
+}
+
+function hasLiberties(bd,x,y,color,visited,group) {
+  const key=`${x},${y}`;
+  if (visited.has(key)) return false;
+  visited.add(key);
+  if (group) group.push([x,y]);
+  const liberties=new Set();
+  for (const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
+    const nx=x+dx, ny=y+dy;
+    if (nx<0||nx>=SIZE||ny<0||ny>=SIZE) continue;
+    if (bd[ny][nx]===EMPTY) liberties.add(`${nx},${ny}`);
+    if (bd[ny][nx]===color && !visited.has(`${nx},${ny}`)) {
+      if (hasLiberties(bd,nx,ny,color,visited,group)) return true;
+    }
+  }
+  return liberties.size>0;
+}
+
+/* ================== Територія ================== */
+function computeAutoTerritory() {
+  let territory=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+  let visited=new Set();
+  for (let y=0;y<SIZE;y++) {
+    for (let x=0;x<SIZE;x++) {
+      if (board[y][x]===EMPTY && !visited.has(`${x},${y}`)) {
+        let area=[]; let owner=territoryOwner(x,y,area);
+        for (const [ax,ay] of area) {
+          visited.add(`${ax},${ay}`);
+          territory[ay][ax]=owner?owner:0;
+        }
+      }
+    }
+  }
+  return territory;
+}
+function territoryOwner(x,y,area) {
+  let queue=[[x,y]]; let owners=new Set(); let visited=new Set();
+  while(queue.length) {
+    let [cx,cy]=queue.pop();
+    let key=`${cx},${cy}`; if (visited.has(key)) continue;
+    visited.add(key); area.push([cx,cy]);
+    for (const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
+      let nx=cx+dx, ny=cy+dy;
+      if (nx<0||nx>=SIZE||ny<0||ny>=SIZE) continue;
+      if (board[ny][nx]===EMPTY && !visited.has(`${nx},${ny}`)) queue.push([nx,ny]);
+      else if (board[ny][nx]!==EMPTY) owners.add(board[ny][nx]);
+    }
+  }
+  return owners.size===1? [...owners][0]:null;
+}
+
+/* ================== Хеш дошки ================== */
+function hashBoard(bd){ return bd.map(r=>r.join("")).join("|"); }
+
+/* ================== Підрахунок ================== */
+function finalizeScoring() {
+  const auto=computeAutoTerritory();
+  let finalMap=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+  for (let y=0;y<SIZE;y++) {
+    for (let x=0;x<SIZE;x++) {
+      if (board[y][x]===EMPTY) {
+        if (auto[y][x]!==0) finalMap[y][x]=auto[y][x];
+        else if (territoryMarks[y][x]!==0) finalMap[y][x]=territoryMarks[y][x];
+      }
+    }
+  }
+  let territory={1:0,2:0};
+  for (let y=0;y<SIZE;y++) {
+    for (let x=0;x<SIZE;x++) {
+      if (board[y][x]===EMPTY && finalMap[y][x]) territory[finalMap[y][x]]++;
+    }
+  }
+  const KOMI=6.5;
+  let blackScore=territory[1]+captures[1];
+  let whiteScore=territory[2]+captures[2]+KOMI;
+  let msg=`<div style="line-height:1.4; text-align:center;">`+
+          `<b>Результат:</b><br>`+
+          `Чорні — ${territory[1]} тер, ${captures[1]} захоплено, <b>${blackScore}</b><br>`+
+          `Білі — ${territory[2]} тер, ${captures[2]} захоплено, комі ${KOMI}, <b>${whiteScore}</b><br>`;
+  if (blackScore>whiteScore) msg+=`<b>Перемогли Чорні!</b>`;
+  else if (blackScore<whiteScore) msg+=`<b>Перемогли Білі!</b>`;
+  else msg+=`<b>Нічия!</b>`;
+  msg+=`</div>`;
+  territoryMap=finalMap; gameOver=true; markingMode=false;
+  toggleMarkBtn.style.display='none'; finalCountBtn.style.display='none';
+  clearMarksBtn.style.display='none'; passBtn.style.display='none';
+  draw(); showInfo(msg);
+}
+
+/* ================== Info ================== */
+function updateInfo() {
+  if (gameOver) return;
+  if (markingMode) {
+    const auto=computeAutoTerritory();
+    let preview=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+    for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+      if (board[y][x]===EMPTY) {
+        if (auto[y][x]!==0) preview[y][x]=auto[y][x];
+        else if (territoryMarks[y][x]!==0) preview[y][x]=territoryMarks[y][x];
+      }
+    }
+    let territory={1:0,2:0};
+    for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) {
+      if (board[y][x]===EMPTY && preview[y][x]) territory[preview[y][x]]++;
+    }
+    const KOMI=6.5;
+    let blackScore=territory[1]+captures[1];
+    let whiteScore=territory[2]+captures[2]+KOMI;
+    const who=markActive===BLACK?'Чорні':'Білі';
+    info.innerHTML=`Режим маркування: <b>${who}</b><br>`+
+      `Попередній рахунок → ⚫ ${blackScore.toFixed(1)} : ⚪ ${whiteScore.toFixed(1)}`;
+    return;
+  }
+  info.innerHTML=(turn===BLACK?"Хід Чорних":"Хід Білих")+
+    ` | Захоплено — ⚫ ${captures[1]}  ⚪ ${captures[2]} | Для завершення: двічі пас.`;
+}
+function showInfo(msg){ info.innerHTML=msg; }
+
+/* ================== Кнопки ================== */
+passBtn.onclick=function(){
+  if (gameOver) return;
+  passCount++;
+  if (passCount>=2) {
+    markingMode=true; markActive=BLACK;
+    territoryMarks=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+    toggleMarkBtn.style.display='inline-block';
+    finalCountBtn.style.display='inline-block';
+    clearMarksBtn.style.display='inline-block';
+    passBtn.style.display='none';
+    draw(); updateInfo();
+  } else {
+    turn=3-turn; lastMove=null; draw(); updateInfo();
+  }
+};
+toggleMarkBtn.onclick=function(){
+  markActive=(markActive===BLACK)?WHITE:BLACK;
+  toggleMarkBtn.innerText=markActive===BLACK?'Маркер: Чорні':'Маркер: Білі';
+  updateInfo();
+};
+clearMarksBtn.onclick=function(){ 
+  territoryMarks=Array.from({length:SIZE},()=>Array(SIZE).fill(0)); 
+  draw(); updateInfo(); 
+};
+finalCountBtn.onclick=function(){ finalizeScoring(); };
+resetBtn.onclick=function(){ init(); };
+init();
+
+/* ================== PWA: manifest, icons, service worker ================== */
+(async function preparePWA() {
+  try {
+    const favLink=document.getElementById('favlink');
+    const svgURL=favLink.href;
+
+    function svgToPngDataUrl(svgUrl,size) {
+      return new Promise((resolve,reject)=>{
+        const img=new Image(); img.crossOrigin='anonymous';
+        img.onload=function() {
+          const c=document.createElement('canvas'); c.width=size; c.height=size;
+          const cx=c.getContext('2d');
+          cx.fillStyle='#00000000'; cx.fillRect(0,0,size,size);
+          cx.drawImage(img,0,0,size,size);
+          try { resolve(c.toDataURL('image/png')); } catch(err){ reject(err); }
+        };
+        img.onerror=(e)=>reject(e||new Error('Image load error'));
+        img.src=svgUrl;
+      });
+    }
+
+    const iconSizes=[192,512]; const manifestIcons=[];
+    for (const s of iconSizes) {
+      try {
+        const png=await svgToPngDataUrl(svgURL,s);
+        manifestIcons.push({src:png,sizes:`${s}x${s}`,type:'image/png',purpose:'any'});
+      } catch(e){ console.warn('Не вдалося створити іконку',s,e); }
+    }
+    try {
+      const applePng=await svgToPngDataUrl(svgURL,180);
+      document.getElementById('apple-touch').href=applePng;
+    } catch(e){ console.warn('apple icon error',e); }
+
+    const startUrl=location.pathname+location.search;
+    const manifest={
+      name:"Ґо", short_name:"Ґо",
+      description:"Гра Ґо — оптимізована PWA",
+      start_url:startUrl, scope:"/",
+      display:"standalone",
+      background_color:"#181a1b", theme_color:"#dab357",
+      icons:manifestIcons
+    };
+    const manifestBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    const manifestURL=URL.createObjectURL(manifestBlob);
+    document.getElementById('manifest-link').href=manifestURL;
+
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS) document.getElementById('install-note').style.display='block';
+
+    if ('serviceWorker' in navigator) {
+      const swCode=`
+        const CACHE_NAME='paw-go-cache-v1';
+        const OFFLINE_FALLBACK_HTML='/';
+        self.addEventListener('install',e=>{
+          self.skipWaiting();
+          e.waitUntil((async()=>{
+            const cache=await caches.open(CACHE_NAME);
+            try {
+              const req=new Request(location.pathname,{cache:'no-cache'});
+              const resp=await fetch(req);
+              if (resp&&resp.ok) await cache.put(req,resp.clone());
+            }catch(err){}
+          })());
+        });
+        self.addEventListener('activate',e=>{
+          e.waitUntil((async()=>{
+            const keys=await caches.keys();
+            await Promise.all(keys.map(k=>{if(k!==CACHE_NAME) return caches.delete(k);}));
+            self.clients.claim();
+          })());
+        });
+        self.addEventListener('fetch',e=>{
+          const req=e.request;
+          if (req.method!=='GET') return;
+          e.respondWith((async()=>{
+            const cache=await caches.open(CACHE_NAME);
+            const cached=await cache.match(req);
+            if (cached) return cached;
+            try {
+              const networkResp=await fetch(req);
+              if (networkResp&&networkResp.ok&&req.url.startsWith(self.location.origin)) {
+                cache.put(req,networkResp.clone()).catch(()=>{});
+              }
+              return networkResp;
+            }catch(err){
+              const fallback=await cache.match(OFFLINE_FALLBACK_HTML);
+              return fallback||new Response('Offline',{status:503});
+            }
+          })());
+        });
+      `;
+      const swBlob=new Blob([swCode],{type:'application/javascript'});
+      const swURL=URL.createObjectURL(swBlob);
+      try {
+        const reg=await navigator.serviceWorker.register(swURL,{scope:'./'});
+        console.log('SW registered',swURL,reg);
+      } catch(err){ console.warn('SW registration failed:',err); }
+    }
+  } catch(err){ console.error('preparePWA error',err); }
+})();
+</script>
 </body>
 </html>
