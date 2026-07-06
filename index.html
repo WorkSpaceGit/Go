@@ -12,6 +12,7 @@
 <link id="apple-touch" rel="apple-touch-icon" href="#">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%231f1f1e'/><circle cx='32' cy='32' r='14' fill='%23dcb35c'/><circle cx='32' cy='32' r='8' fill='%231f1f1e'/></svg>">
 <style>
+:root{--gold:#dcb35c;--sep:#333331;--muted:#666}
 /* ── Reset & base ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{height:100%;background:#1f1f1e}
@@ -68,12 +69,12 @@ body{
   overflow:hidden;
   height:45vh;min-height:380px;max-height:480px;
   flex-shrink:0;
-  border-top:1px solid #333331;
+  border-top:1px solid var(--sep);
 }
 #root.landscape #info-panel{
   width:46vw;max-width:420px;height:100%;
   max-height:none;min-height:0;
-  border-top:none;border-left:1px solid #333331;
+  border-top:none;border-left:1px solid var(--sep);
 }
 #root.zen #info-panel{display:none}
 
@@ -81,11 +82,11 @@ body{
 #ctrl-bar{
   display:flex;align-items:center;gap:6px;
   padding:5px 12px;
-  border-bottom:1px solid #333331;
+  border-bottom:1px solid var(--sep);
   flex-shrink:0;
 }
 .ctrl-btn{
-  background:transparent;color:#666;
+  background:transparent;color:var(--muted);
   border:1px solid transparent;border-radius:4px;
   padding:4px 10px;font-size:12px;line-height:14px;
   cursor:pointer;transition:border-color .15s,color .15s;outline:none;
@@ -93,29 +94,29 @@ body{
 }
 .ctrl-btn:active{border-color:#555}
 .ctrl-btn:disabled{opacity:.25;cursor:default}
-.ctrl-btn.accent{color:#dcb35c;border-color:#dcb35c}
+.ctrl-btn.accent{color:var(--gold);border-color:var(--gold)}
 #finalize-btn,#back-btn{width:124px;text-align:center}
-#pass-btn{color:#dcb35c;border-color:#dcb35c}
+#pass-btn{color:var(--gold);border-color:var(--gold);font-weight:500}
 
 /* ── Board size selector ── */
 #size-bar{
   display:flex;align-items:center;gap:5px;flex-wrap:nowrap;
-  padding:6px 12px;border-bottom:1px solid #333331;
+  padding:6px 12px;border-bottom:1px solid var(--sep);
   flex-shrink:0;
 }
 .size-btn{
-  background:transparent;color:#666;
+  background:transparent;color:var(--muted);
   border:1px solid transparent;border-radius:4px;
   padding:4px 10px;font-size:12px;
   cursor:pointer;transition:color .15s,border-color .15s;outline:none;
   font-family:inherit;white-space:nowrap;
 }
-.size-btn.active{color:#dcb35c;border-color:#dcb35c}
+.size-btn.active{color:var(--gold);border-color:var(--gold);font-weight:500}
 
 /* Комі inline — flex-shrink:0 prevents squishing */
 #komi-wrap{
   margin-left:auto;display:flex;align-items:center;gap:4px;
-  color:#666;font-size:12px;flex-shrink:0;
+  color:var(--muted);font-size:12px;flex-shrink:0;
 }
 #komi-val{
   color:#d4d4d0;font-size:12px;min-width:26px;text-align:center;
@@ -128,7 +129,7 @@ body{
   -webkit-tap-highlight-color:transparent;
   transition:color .15s;
 }
-.komi-arrow:active{color:#dcb35c}
+.komi-arrow:active{color:var(--gold)}
 
 /* ── Marking controls (всередині score-block → точне вирівнювання) ── */
 .sc-mc-label{
@@ -146,24 +147,24 @@ body{
   padding:5px 0;
 }
 .sc-mk-btn{
-  background:transparent;color:#666;
+  background:transparent;color:var(--muted);
   border:1px solid transparent;border-radius:4px;
   padding:4px 10px;font-size:12px;line-height:14px;
   cursor:pointer;font-family:inherit;
   transition:color .15s,border-color .15s;
   -webkit-tap-highlight-color:transparent;
 }
-.sc-mk-btn.active{color:#dcb35c;border-color:#dcb35c}
+.sc-mk-btn.active{color:var(--gold);border-color:var(--gold)}
 
 /* ── Time control ── */
 #time-bar{
   display:flex;align-items:center;gap:3px;
-  padding:6px 12px;border-bottom:1px solid #333331;
+  padding:6px 12px;border-bottom:1px solid var(--sep);
   flex-shrink:0;overflow-x:auto;scrollbar-width:none;
 }
 #time-bar::-webkit-scrollbar{display:none}
 .tcb{
-  background:transparent;color:#666;
+  background:transparent;color:var(--muted);
   border:1px solid transparent;border-radius:4px;
   padding:4px 10px;font-size:12px;
   cursor:pointer;outline:none;font-family:inherit;
@@ -171,24 +172,23 @@ body{
   transition:color .15s,border-color .15s;
   -webkit-tap-highlight-color:transparent;
 }
-.tcb.active{color:#dcb35c;border-color:#dcb35c}
+.tcb.active{color:var(--gold);border-color:var(--gold);font-weight:500}
 .tc-sep{width:1px;background:#2a2a28;height:14px;flex-shrink:0;margin:0 3px}
 
-/* ── Clock display ── */
+/* ── Clock display + timer bar в одному рядку ── */
 #clock-bar{
   display:none;
-  padding:6px 12px;border-bottom:1px solid #333331;
-  justify-content:space-between;align-items:center;
+  padding:6px 12px;border-bottom:1px solid var(--sep);
+  align-items:center;gap:10px;
   flex-shrink:0;
 }
 #clock-bar.visible{display:flex}
 
-/* ── Timer progress bar ── */
+/* ── Timer progress bar (гнучкий сегмент між годинниками) ── */
 #timer-progress{
   display:none;height:4px;
-  background:#1a1a18;
-  position:relative;flex-shrink:0;
-  border-bottom:1px solid #333331;
+  background:#1a1a18;border-radius:2px;overflow:hidden;
+  position:relative;flex:1 1 auto;min-width:16px;
 }
 #timer-progress.visible{display:block}
 #tp-b{
@@ -207,25 +207,25 @@ body{
   transform:scaleX(1);
   will-change:transform;
 }
-.tp-active{background:#dcb35c}
-.tp-low{background:#c94444}
-.ck-player{display:flex;align-items:center;gap:6px}
+#tp-b.tp-active,#tp-w.tp-active{background:var(--gold)}
+#tp-b.tp-low,#tp-w.tp-low{background:#c94444}
+.ck-player{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .ck-stone{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.ck-stone-b{background:radial-gradient(circle at 35% 35%,#666,#111)}
+.ck-stone-b{background:radial-gradient(circle at 35% 35%,var(--muted),#111)}
 .ck-stone-w{background:radial-gradient(circle at 35% 35%,#fff,#bbb);box-shadow:0 0 0 .5px #888}
 .ck-main{
   font-size:12px;font-variant-numeric:tabular-nums;
-  color:#666;font-weight:normal;
+  color:var(--muted);font-weight:normal;
   transition:color .25s;
 }
-.ck-byo{font-size:12px;color:#666;font-variant-numeric:tabular-nums}
-.ck-player.ck-on .ck-main{color:#dcb35c;font-weight:500}
-.ck-player.ck-on .ck-byo{color:#dcb35c}
+.ck-byo{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ck-player.ck-on .ck-main{color:var(--gold);font-weight:500}
+.ck-player.ck-on .ck-byo{color:var(--gold)}
 .ck-player.ck-low .ck-main{color:#c94444;font-weight:600}
 
 /* ── Score block ── */
 #score-section{
-  padding:7px 14px 6px;border-bottom:1px solid #333331;
+  padding:7px 14px 6px;border-bottom:1px solid var(--sep);
   flex-shrink:0;
 }
 #score-block{
@@ -233,23 +233,19 @@ body{
   gap:0;font-size:12px;
 }
 .sc-row{display:contents}
-.sc-label{color:#b0b0ac;padding:2px 0;align-self:center;font-size:11px}
+.sc-label{color:#b0b0ac;padding:2px 0;align-self:center;font-size:10px}
 .sc-head{color:#b0b0ac;font-size:10px;text-align:center;padding:0 10px 3px 4px}
 .sc-head-w{color:#b0b0ac;font-size:10px;text-align:center;padding:0 0 3px}
 .sc-b{color:#b0b0ac;text-align:center;padding:2px 10px 2px 4px}
 .sc-w{color:#b0b0ac;text-align:center;padding:2px 0}
-/* Сепаратор + виграшна підсвітка рядка "Разом" */
-.sc-total .sc-label{
-  color:#b0b0ac;font-size:12px;
-  border-top:1px solid #383836;padding-top:5px;margin-top:2px;
-}
+/* Сепаратор (лише під чорні/білі) + виграшна підсвітка рядка "Разом" */
 .sc-total .sc-b,.sc-total .sc-w{
   color:#b0b0ac;font-weight:600;
   border-top:1px solid #383836;padding-top:5px;margin-top:2px;
 }
-#sc-total-b.sc-win,#sc-total-w.sc-win{color:#dcb35c}
+#sc-total-b.sc-win,#sc-total-w.sc-win{color:var(--gold)}
 .sc-total .sc-b.sc-win,.sc-total .sc-w.sc-win{
-  color:#dcb35c;font-weight:700;
+  color:var(--gold);
 }
 
 /* ── History ── */
@@ -257,7 +253,7 @@ body{
   flex:1;overflow-y:scroll;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
   padding:7px 12px 8px;min-height:0;
-  background:#dcb35c;
+  background:var(--gold);
   scrollbar-width:thin;scrollbar-color:rgba(60,36,4,.4) transparent;
 }
 #history-wrap::-webkit-scrollbar{width:2px}
@@ -301,13 +297,13 @@ body{
 }
 #root.landscape #zen-btn{bottom:12px;right:12px}
 #root.zen #zen-btn{bottom:14px;right:14px;color:#333;border-color:#2a2a28}
-#zen-btn:active{color:#dcb35c;border-color:#dcb35c}
+#zen-btn:active{color:var(--gold);border-color:var(--gold)}
 
 /* ── Binary clock ── */
 #bin-clock{
   display:flex;align-items:flex-end;justify-content:center;
   padding:6px 12px 5px;
-  border-bottom:1px solid #333331;
+  border-bottom:1px solid var(--sep);
   flex-shrink:0;gap:0;
 }
 .bc-group{display:flex;gap:0;align-items:flex-end}
@@ -317,7 +313,7 @@ body{
   background:#3a3a38;
   flex-shrink:0;
 }
-.bc-bit.on{background:#dcb35c}
+.bc-bit.on{background:var(--gold)}
 /* spacer між групами — ширина як у біта, висота 0 */
 .bc-spacer{flex-shrink:0}
 
@@ -371,17 +367,16 @@ body{
         <span class="ck-main" id="ck-main-b">—</span>
         <span class="ck-byo" id="ck-byo-b"></span>
       </div>
+      <!-- Timer progress bar: Black← left | right →White, від центру -->
+      <div id="timer-progress">
+        <div id="tp-b"></div>
+        <div id="tp-w"></div>
+      </div>
       <div class="ck-player" id="ck-w" style="flex-direction:row-reverse">
         <div class="ck-stone ck-stone-w"></div>
         <span class="ck-main" id="ck-main-w">—</span>
         <span class="ck-byo" id="ck-byo-w"></span>
       </div>
-    </div>
-
-    <!-- Timer progress bar: Black← left | right →White, від центру -->
-    <div id="timer-progress">
-      <div id="tp-b"></div>
-      <div id="tp-w"></div>
     </div>
 
     <!-- Score — завжди на місці -->
@@ -473,7 +468,7 @@ let deadStones=null;       // Uint8Array: 1 = група позначена як
 let manualMarks=null;      // Uint8Array: BLACK/WHITE/NEUTRAL = ручне маркування, 0 = авто
 let markTerritoryMode=BLACK; // поточний режим ручного маркування
 let cachedAutoTerritory=null; // перераховується при зміні deadStones
-let pad=0,cell=0,cxArr=[],cyArr=[];
+let pad=0,cell=0,cxArr=[],cyArr=[],dpr=getDPR(); // dpr кешується тут, оновлюється лише в resizeCanvas()
 let hoverX=-1,hoverY=-1,zenMode=false;
 let _cachedRect=null;
 let histRenderedCount=0,histMoveCount=0;
@@ -614,6 +609,14 @@ function setBarPaused(color,el,ratio){
   el.style.transform=`scaleX(${ratio})`;
   el.classList.remove('tp-active','tp-low');
 }
+// Підсвітити "на ходу" ще ДО старту відліку (перший хід партії) — без transform-анімації,
+// бо clockB/clockW фізично не тікають, поки не зроблено перший хід (interval стартує в onMoveMade)
+function setBarIdleActive(el){
+  el.style.transition='none';
+  el.style.transform='scaleX(1)';
+  el.classList.remove('tp-low');
+  el.classList.add('tp-active');
+}
 // Запустити безперервну CSS-анімацію до 0 за durationSec — без подальших JS-записів щосекунди
 function setBarRunning(color,el,ratio,durationSec,thresholdSec){
   el.style.transition='none';
@@ -703,7 +706,7 @@ function setupTimer(){
   clockB=makeClk(pre);clockW=makeClk(pre);
   clockBar.classList.add('visible');
   timerProgress.classList.add('visible');
-  setBarPaused(BLACK,tpB,1);
+  setBarIdleActive(tpB); // чорні ходять першими — одразу золоті, хоч відлік ще не стартував
   setBarPaused(WHITE,tpW,1);
   updateClockUI();
 }
@@ -741,7 +744,7 @@ function resizeCanvas(){
   clearTimeout(_rt);
   _rt=setTimeout(()=>{
     const sr=boardSide.getBoundingClientRect();
-    const dpr=getDPR();
+    dpr=getDPR(); // оновлюємо єдине кешоване значення (без 'const' — пише в зовнішню змінну)
     // square: fit in available space with padding already applied via CSS
     const S=Math.floor(Math.min(sr.width,sr.height));
     if(S<60)return;
@@ -948,7 +951,6 @@ function drawStone(cx,cy,color){
 function canvasXY(e){
   if(!_cachedRect)_cachedRect=canvas.getBoundingClientRect();
   const rect=_cachedRect;
-  const dpr=getDPR();
   const px=(e.clientX-rect.left)*dpr;
   const py=(e.clientY-rect.top)*dpr;
   let x=Math.round((px-pad)/cell);
@@ -1119,15 +1121,17 @@ function calcScore(fm){
 }
 
 /* ── Score display ── */
+// Спільний запис 6 полів результату — раніше дублювалось в updateScoreDisplay() і showFinalScore()
+function renderScoreFields(sc){
+  scTerrB.textContent=sc.terrB;scTerrW.textContent=sc.terrW;
+  scCapB.textContent=sc.capB;scCapW.textContent=sc.capW;
+  scTotalB.textContent=sc.totalB.toFixed(1);scTotalW.textContent=sc.totalW.toFixed(1);
+}
 function updateScoreDisplay(){
   scKomiVal.textContent=KOMI;
   if(markingMode||gameOver){
     const auto=cachedAutoTerritory||computeAutoTerritory();
-    const fm=buildFinalMap(auto);
-    const sc=calcScore(fm);
-    scTerrB.textContent=sc.terrB;scTerrW.textContent=sc.terrW;
-    scCapB.textContent=sc.capB;scCapW.textContent=sc.capW;
-    scTotalB.textContent=sc.totalB.toFixed(1);scTotalW.textContent=sc.totalW.toFixed(1);
+    renderScoreFields(calcScore(buildFinalMap(auto)));
   } else {
     scCapB.textContent=captures[BLACK];
     scCapW.textContent=captures[WHITE];
@@ -1140,10 +1144,8 @@ function showFinalScore(){
   cachedAutoTerritory=auto; // зберігаємо — потрібно при поверненні назад
   territoryMap=buildFinalMap(auto);
   const sc=calcScore(territoryMap);
-  scTerrB.textContent=sc.terrB;scTerrW.textContent=sc.terrW;
-  scCapB.textContent=sc.capB;scCapW.textContent=sc.capW;
+  renderScoreFields(sc);
   scKomiVal.textContent=KOMI;
-  scTotalB.textContent=sc.totalB.toFixed(1);scTotalW.textContent=sc.totalW.toFixed(1);
   scTotalB.classList.remove('sc-win');scTotalW.classList.remove('sc-win');
   if(sc.totalB>sc.totalW)scTotalB.classList.add('sc-win');
   else if(sc.totalW>sc.totalB)scTotalW.classList.add('sc-win');
@@ -1239,17 +1241,19 @@ backBtn.onclick=()=>{
 };
 
 /* ── Time control & Size & Komi ── */
-document.querySelectorAll('.tcb').forEach(btn=>{
+const tcbBtns=document.querySelectorAll('.tcb'); // кешуємо один раз — набір кнопок статичний
+tcbBtns.forEach(btn=>{
   btn.onclick=()=>{
-    document.querySelectorAll('.tcb').forEach(b=>b.classList.remove('active'));
+    tcbBtns.forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     tcKey=btn.dataset.tc;
     init();
   };
 });
-document.querySelectorAll('.size-btn').forEach(btn=>{
+const sizeBtns=document.querySelectorAll('.size-btn');
+sizeBtns.forEach(btn=>{
   btn.onclick=()=>{
-    document.querySelectorAll('.size-btn').forEach(b=>b.classList.remove('active'));
+    sizeBtns.forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     SIZE=parseInt(btn.dataset.size);
     init();
